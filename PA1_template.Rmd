@@ -1,7 +1,7 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 author: "acourses"
-date: "Sunday, September 14, 2014"
+date: "Sunday, October 17, 2014"
 output: 
   html_document:
     keep_md: true
@@ -9,8 +9,10 @@ output:
 
 
 ## Loading and preprocessing the data
-```{r results="hide", echo = TRUE}
+```{r results="hide", echo = T}
 library(doBy)
+library(plyr)
+library(lattice)
 unzip("activity.zip")
 df <- read.csv("activity.csv", header = T, sep = ",")
 df$steps <- as.integer(df$steps)
@@ -48,14 +50,20 @@ plot(day_summary, type="l", xaxt="n",
      xlab="Time", ylab="Average number of steps",
      main = "Daily activity pattern")
 
-x_ticks <- c(200, 600, 1000, 1400, 1800, 2200)
-x_labels <- format(strptime(sprintf("%04d", x_ticks), format = "%H%M"), "%H:%M")
+pretty_int <- function(interval) {
+    format(strptime(sprintf("%04d", interval), format = "%H%M"), "%H:%M")    
+}
+
+x_ticks <- quantile(day_summary$interval, 0:6/6, type = 3)
+x_labels <- pretty_int(x_ticks)
 axis(1, at=x_ticks, labels = x_labels)
 
-max_steps_interval <- day_summary[day_summary$steps.mean == max(day_summary$steps.mean),]$interval
+max_steps <- day_summary[day_summary$steps.mean == max(day_summary$steps.mean),]
+max_steps_time <- pretty_int(max_steps$interval)
+
 ```
 
-The interval `r max_steps_interval` contains the maximum number of steps on average across all the days in the dataset.
+The interval `r max_steps$interval` (or `r max_steps_time`) contains the maximum number of steps on average across all the days in the dataset, `r max_steps$steps.mean` steps.
 
 
 ## Imputing missing values
@@ -70,18 +78,34 @@ The total number of rows with NAs is `r nas_count`.
 The missing values in the dataset will be replaced with mean value for that 5-minute interval.
 
 ```{r echo = TRUE}
-interval_mean <- function (x) {
-    day_summary[day_summary[,1]==x, 2]
-}
+df_without_na <- within(
+    join(df, day_summary, by = "interval"),
+    steps <- ifelse(is.na(steps), steps.mean, steps))
 
+data_summary2 <- summaryBy(steps ~ date, data=df_without_na, FUN=c(sum))
+
+# Make a histogram of the total number of steps taken each day
+hist(data_summary2$steps.sum, breaks = 16, col="red",
+     main ="Total number of steps taken each day with the missing data filled in",
+     xlab = "Number of steps")
+
+mean_steps_without_na <- as.integer(mean(data_summary2$steps.sum, na.rm = T))
+median_steps_without_na <- as.integer(median(data_summary2$steps.sum, na.rm = T))
 ```
+Mean total number of steps per day with the missing data filled in is `r mean_steps_without_na`.
+Median total number of steps per day with the missing data filled in is `r median_steps_without_na`.
+
+Mean total number of steps per day with the missing data filled didnt change, median value changed insignificantly. The histogram shape remained mostly the same, but estimated frequency of mean value increased by more than 50% .
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
 ```{r echo = TRUE}
-
-
-
+df_without_na$wday <- factor(ifelse(df_without_na$date$wday %in% c(0,6), "weekend", "weekday"))
+day_summary2 <- summaryBy(steps ~ interval + wday, data=df_without_na, FUN=mean)
+xyplot(steps.mean ~ interval | wday, data=day_summary2, type="l")
 ```
+
+The weekday and weekend patterns clearly different, weekdays plot has a peak around 800-900 interval that weekends plot doesnt.
+
 

@@ -1,6 +1,6 @@
 # Reproducible Research: Peer Assessment 1
 acourses  
-Sunday, September 14, 2014  
+Sunday, October 17, 2014  
 
 
 ## Loading and preprocessing the data
@@ -16,6 +16,8 @@ library(doBy)
 ```
 
 ```r
+library(plyr)
+library(lattice)
 unzip("activity.zip")
 df <- read.csv("activity.csv", header = T, sep = ",")
 df$steps <- as.integer(df$steps)
@@ -38,7 +40,7 @@ hist(data_summary$steps.sum, breaks = 16, col="red",
      xlab = "Number of steps")
 ```
 
-![plot of chunk unnamed-chunk-2](./PA1_template_files/figure-html/unnamed-chunk-2.png) 
+![](./PA1_template_files/figure-html/unnamed-chunk-2-1.png) 
 
 ```r
 # Calculate and report the mean and median total number of steps taken per day
@@ -59,18 +61,23 @@ plot(day_summary, type="l", xaxt="n",
      xlab="Time", ylab="Average number of steps",
      main = "Daily activity pattern")
 
-x_ticks <- c(200, 600, 1000, 1400, 1800, 2200)
-x_labels <- format(strptime(sprintf("%04d", x_ticks), format = "%H%M"), "%H:%M")
+pretty_int <- function(interval) {
+    format(strptime(sprintf("%04d", interval), format = "%H%M"), "%H:%M")    
+}
+
+x_ticks <- quantile(day_summary$interval, 0:6/6, type = 3)
+x_labels <- pretty_int(x_ticks)
 axis(1, at=x_ticks, labels = x_labels)
 ```
 
-![plot of chunk unnamed-chunk-3](./PA1_template_files/figure-html/unnamed-chunk-3.png) 
+![](./PA1_template_files/figure-html/unnamed-chunk-3-1.png) 
 
 ```r
-max_steps_interval <- day_summary[day_summary$steps.mean == max(day_summary$steps.mean),]$interval
+max_steps <- day_summary[day_summary$steps.mean == max(day_summary$steps.mean),]
+max_steps_time <- pretty_int(max_steps$interval)
 ```
 
-The interval 835 contains the maximum number of steps on average across all the days in the dataset.
+The interval 835 (or 08:35) contains the maximum number of steps on average across all the days in the dataset, 206.1698113 steps.
 
 
 ## Imputing missing values
@@ -87,13 +94,41 @@ The missing values in the dataset will be replaced with mean value for that 5-mi
 
 
 ```r
-interval_mean <- function (x) {
-    day_summary[day_summary[,1]==x, 2]
-}
+df_without_na <- within(
+    join(df, day_summary, by = "interval"),
+    steps <- ifelse(is.na(steps), steps.mean, steps))
+
+data_summary2 <- summaryBy(steps ~ date, data=df_without_na, FUN=c(sum))
+
+# Make a histogram of the total number of steps taken each day
+hist(data_summary2$steps.sum, breaks = 16, col="red",
+     main ="Total number of steps taken each day with the missing data filled in",
+     xlab = "Number of steps")
 ```
+
+![](./PA1_template_files/figure-html/unnamed-chunk-5-1.png) 
+
+```r
+mean_steps_without_na <- as.integer(mean(data_summary2$steps.sum, na.rm = T))
+median_steps_without_na <- as.integer(median(data_summary2$steps.sum, na.rm = T))
+```
+Mean total number of steps per day with the missing data filled in is 10766.
+Median total number of steps per day with the missing data filled in is 10766.
+
+Mean total number of steps per day with the missing data filled didnt change, median value changed insignificantly. The histogram shape remained mostly the same, but estimated frequency of mean value increased by more than 50% .
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
+
+```r
+df_without_na$wday <- factor(ifelse(df_without_na$date$wday %in% c(0,6), "weekend", "weekday"))
+day_summary2 <- summaryBy(steps ~ interval + wday, data=df_without_na, FUN=mean)
+xyplot(steps.mean ~ interval | wday, data=day_summary2, type="l")
+```
+
+![](./PA1_template_files/figure-html/unnamed-chunk-6-1.png) 
+
+The weekday and weekend patterns clearly different, weekdays plot has a peak around 800-900 interval that weekends plot doesnt.
 
 
